@@ -2,7 +2,7 @@
 
 -- Business timezone: decides when "today" starts, so the line resets at local midnight.
 create or replace function queue_tz() returns text
-language sql immutable as $$ select 'UTC' $$;  -- change to e.g. 'America/New_York'
+language sql immutable as $$ select 'Asia/Riyadh' $$;  -- change to e.g. 'America/New_York'
 
 create or replace function is_today(t timestamptz) returns boolean
 language sql stable as $$
@@ -24,6 +24,9 @@ create index if not exists entries_status_created on entries (status, created_at
 -- so they never see anyone else's name.
 alter table entries enable row level security;
 revoke all on entries from anon;  -- Supabase grants anon table access by default
+-- Explicit, in case the project's default grants differ; RLS below still limits this to staff.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on entries to authenticated;
 
 create or replace function is_staff() returns boolean
 language sql stable as $$

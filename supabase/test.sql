@@ -15,6 +15,10 @@ begin
   a := join_queue('  Ana  ', 2);
   b := join_queue('Ben', 4);
   c := join_queue('Cy', 1);
+  -- Spread join times: some test runners' clocks tick in ms, so back-to-back joins can tie.
+  update entries set created_at = now() - interval '3 minutes' where id = a;
+  update entries set created_at = now() - interval '2 minutes' where id = b;
+  update entries set created_at = now() - interval '1 minute'  where id = c;
   assert (select name from entries where id = a) = 'Ana', 'name is trimmed';
   select * into s from get_status(b);
   assert s.status = 'waiting' and s."position" = 2, 'Ben is #2';
