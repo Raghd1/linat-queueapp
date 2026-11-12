@@ -1,0 +1,36 @@
+:root {
+  --bg: #f7f7f5; --fg: #1b1b1b; --muted: #666; --card: #fff; --line: #ddd;
+  --accent: #0b6e4f; --accent-fg: #fff; --danger: #b42318;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121212; --fg: #eee; --muted: #aaa; --card: #1e1e1e; --line: #333;
+          --accent: #3ccf91; --accent-fg: #062; --danger: #ff6b5e; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+h1 { font-size: 1.6rem; margin: 0 0 16px; }
+h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+label { display: block; margin-bottom: 14px; font-weight: 600; }
+input { display: block; width: 100%; margin-top: 6px; padding: 12px; font: inherit;
+        border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
+button { font: inherit; font-weight: 600; padding: 12px 18px; min-height: 44px; border-radius: 8px;
+         border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wide { width: 100%; }
+.muted { color: var(--muted); }
+.error { color: var(--danger); min-height: 1.4em; }
+.big { font-size: 3.5rem; font-weight: 800; margin: 8px 0; }
+.called { background: var(--accent); color: var(--accent-fg); border-radius: 16px; padding: 32px 20px; text-align: center; }
+ul.list { list-style: none; padding: 0; margin: 0; }
+ul.list li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+             padding: 10px 0; border-bottom: 1px solid var(--line); }
+ul.list li .who { flex: 1 1 180px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.row label { flex: 1 1 140px; margin: 0; }
+#qr { background: #fff; padding: 12px; display: inline-block; margin-top: 8px; }

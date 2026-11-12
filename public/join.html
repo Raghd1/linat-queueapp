@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join the line</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <form id="join" hidden>
+    <h1>Join the line</h1>
+    <label>Your name
+      <input name="name" required maxlength="40" autocomplete="given-name">
+    </label>
+    <label>How many people?
+      <input name="party" type="number" min="1" max="20" value="2" required inputmode="numeric">
+    </label>
+    <button class="primary wide">Join the line</button>
+    <p class="error" id="err" role="alert"></p>
+  </form>
+
+  <section id="ticket" hidden aria-live="polite">
+    <div id="box">
+      <p id="label" class="muted"></p>
+      <p id="headline" class="big"></p>
+      <p id="detail"></p>
+    </div>
+    <p class="muted">Keep this page open. It updates by itself and will beep when it's your turn.</p>
+    <p id="again" hidden><a href="join.html">Join the line again</a></p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const UUID = /^[0-9a-f-]{36}$/i;
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+// Phones only allow sound after a tap; the Join tap (or any later tap) unlocks it.
+document.addEventListener('pointerdown', () => audio.resume());
+
+let id = new URLSearchParams(location.search).get('id');
+try { id = id || localStorage.getItem('ticket'); } catch {}
+if (!UUID.test(id || '')) id = null;
+
+let alerted = false, flash;
+
+function showTicket(label, headline, detail, opts = {}) {
+  $('#join').hidden = true;
+  $('#ticket').hidden = false;
+  $('#box').className = opts.called ? 'called' : '';
+  $('#label').textContent = label;
+  $('#headline').textContent = headline;
+  $('#detail').textContent = detail;
+  $('#again').hidden = !opts.over;
+}
+
+function forget() {
+  try { localStorage.removeItem('ticket'); } catch {}
+}
+
+function beep() {
+  [0, 0.4, 0.8].forEach((t) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = 880;
+    g.gain.value = 0.3;
+    o.connect(g).connect(audio.destination);
+    o.start(audio.currentTime + t);
+    o.stop(audio.currentTime + t + 0.25);
+  });
+}
+
+function alertCustomer() {
+  if (alerted) return;
+  alerted = true;
+  beep();
+  navigator.vibrate?.([400, 200, 400, 200, 400]); // Android only; iPhone ignores it
+  let on = false;
+  flash = setInterval(() => { document.title = (on = !on) ? "🔔 IT'S YOUR TURN" : 'Join the line'; }, 1000);
+}
+
+async function refresh() {
+  if (!id) return;
+  const { data, error } = await db.rpc('get_status', { p_id: id });
+  if (error) return; // keep the last view; the next update or poll retries
+  const s = data[0];
+  if (!s) { forget(); id = null; $('#ticket').hidden = true; $('#join').hidden = false; return; }
+  if (s.status === 'waiting') {
+    showTicket("You're number", `#${s.position}`,
+      `About ${s.est_minutes} min wait` + (s.position === 1 ? ' · you are next!' : ''));
+  } else if (s.status === 'called') {
+    showTicket('', "It's your turn!", 'Please come to the front now.', { called: true });
+    alertCustomer();
+  } else {
+    clearInterval(flash);
+    document.title = 'Join the line';
+    showTicket('', s.status === 'done' ? 'Thanks!' : 'You were removed from the line',
+      s.status === 'done' ? 'Enjoy your visit.' : 'Missed your turn? Ask at the front or join again.', { over: true });
+    forget();
+  }
+}
+
+$('#join').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target, btn = f.querySelector('button');
+  btn.disabled = true;
+  $('#err').textContent = '';
+  const { data, error } = await db.rpc('join_queue', {
+    p_name: f.elements.name.value, p_party: Number(f.elements.party.value),
+  });
+  btn.disabled = false;
+  if (error) { $('#err').textContent = error.message || 'Could not join. Please try again.'; return; }
+  id = data;
+  try { localStorage.setItem('ticket', id); } catch {}
+  history.replaceState(null, '', `?id=${id}`); // bookmarkable / survives reload
+  refresh();
+});
+
+if (id) { history.replaceState(null, '', `?id=${id}`); refresh(); }
+else $('#join').hidden = false;
+onQueueChange(refresh);
+</script>
+</body>
+</html>

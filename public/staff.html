@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queue Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <form id="login" hidden>
+    <h1>Staff login</h1>
+    <label>Password
+      <input name="password" type="password" required autocomplete="current-password">
+    </label>
+    <button class="primary wide">Log in</button>
+    <p class="error" id="loginErr" role="alert"></p>
+  </form>
+
+  <section id="dash" hidden>
+    <div class="row" style="justify-content: space-between; align-items: center">
+      <h1 style="margin: 0">Queue</h1>
+      <button id="logout">Log out</button>
+    </div>
+    <p class="error" id="err" role="alert"></p>
+
+    <button id="next" class="primary wide" style="font-size: 1.3rem; padding: 18px">Call next</button>
+
+    <h2>Waiting (<span id="waitCount">0</span>)</h2>
+    <ul class="list" id="waiting"></ul>
+
+    <h2>Called</h2>
+    <ul class="list" id="called"></ul>
+
+    <h2>Add a walk-in</h2>
+    <form id="add" class="row">
+      <label>Name <input name="name" required maxlength="40"></label>
+      <label>Party <input name="party" type="number" min="1" max="20" value="2" required></label>
+      <button>Add</button>
+    </form>
+
+    <details style="margin-top: 28px">
+      <summary>QR code for customers</summary>
+      <p class="muted" id="joinUrl"></p>
+      <div id="qr"></div>
+    </details>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const showErr = (e) => { $('#err').textContent = e ? e.message || String(e) : ''; };
+const minsSince = (t) => Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
+
+// Names are typed by customers: always set as textContent, never innerHTML.
+function item(entry, sub, buttons) {
+  const li = document.createElement('li');
+  const who = document.createElement('div');
+  who.className = 'who';
+  const strong = document.createElement('strong');
+  strong.textContent = entry.name;
+  const small = document.createElement('div');
+  small.className = 'muted';
+  small.textContent = `Party of ${entry.party_size} · ${sub}`;
+  who.append(strong, small);
+  li.append(who);
+  for (const [text, status, cls] of buttons) {
+    const b = document.createElement('button');
+    b.textContent = text;
+    if (cls) b.className = cls;
+    b.onclick = () => setStatus(entry.id, status);
+    li.append(b);
+  }
+  return li;
+}
+
+async function load() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const { data, error } = await db.from('entries').select('*')
+    .in('status', ['waiting', 'called'])
+    .gte('created_at', start.toISOString())
+    .order('created_at');
+  if (error) return showErr(error);
+  const waiting = data.filter((e) => e.status === 'waiting');
+  const called = data.filter((e) => e.status === 'called')
+    .sort((a, b) => b.called_at.localeCompare(a.called_at));
+  $('#waitCount').textContent = waiting.length;
+  $('#next').disabled = !waiting.length;
+  $('#waiting').replaceChildren(...waiting.map((e, i) =>
+    item(e, `#${i + 1} · waiting ${minsSince(e.created_at)} min`, [['Remove', 'no_show', 'danger']])));
+  $('#called').replaceChildren(...called.map((e) =>
+    item(e, `called ${minsSince(e.called_at)} min ago`, [['Done', 'done'], ['No-show', 'no_show', 'danger']])));
+  if (!waiting.length) $('#waiting').innerHTML = '<li class="muted">Nobody waiting.</li>';
+}
+
+async function setStatus(id, status) {
+  const { error } = await db.from('entries').update({ status }).eq('id', id);
+  showErr(error);
+  load();
+}
+
+$('#next').onclick = async () => {
+  $('#next').disabled = true;
+  const { error } = await db.rpc('call_next');
+  showErr(error);
+  load();
+};
+
+$('#add').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const { error } = await db.from('entries').insert({
+    name: f.elements.name.value.trim(), party_size: Number(f.elements.party.value),
+  });
+  showErr(error);
+  if (!error) f.reset();
+  load();
+});
+
+$('#login').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const { error } = await db.auth.signInWithPassword({
+    email: STAFF_EMAIL, password: ev.target.elements.password.value,
+  });
+  $('#loginErr').textContent = error ? 'Wrong password.' : '';
+});
+
+$('#logout').onclick = () => db.auth.signOut();
+
+const joinUrl = new URL('join.html', location.href).href;
+$('#joinUrl').textContent = joinUrl;
+new QRCode($('#qr'), { text: joinUrl, width: 220, height: 220 });
+
+let started = false;
+db.auth.onAuthStateChange((_event, session) => {
+  $('#login').hidden = !!session;
+  $('#dash').hidden = !session;
+  // setTimeout: calling supabase inside this callback can deadlock (supabase-js docs)
+  if (session && !started) { started = true; setTimeout(() => { load(); onQueueChange(load); }); }
+});
+</script>
+</body>
+</html>
