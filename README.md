@@ -3,6 +3,7 @@
 Customers scan a QR code, enter their name and party size, and watch their place in line live.
 Their phone beeps when they're called. Staff run the line from one dashboard.
 
+- `public/index.html`: landing page at the bare address (staff login + join links)
 - `public/join.html`: customer page (the QR code points here)
 - `public/staff.html`: staff dashboard (call next, done / no-show, add walk-ins, QR code)
 - `supabase/schema.sql`: database, security rules, queue logic, live updates

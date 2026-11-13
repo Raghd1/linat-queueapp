@@ -8,15 +8,19 @@
 </head>
 <body>
 <main>
+  <header>
+    <img src="logo.png" alt="Linates" height="44">
+    <button id="lang" type="button" lang="ar">العربية</button>
+  </header>
   <form id="join" hidden>
-    <h1>Join the line</h1>
-    <label>Your name
+    <h1 data-i18n="join">Join the line</h1>
+    <label><span data-i18n="name">Your name</span>
       <input name="name" required maxlength="40" autocomplete="given-name">
     </label>
-    <label>How many people?
-      <input name="party" type="number" min="1" max="20" value="2" required inputmode="numeric">
+    <label><span data-i18n="party">How many people?</span>
+      <input name="party" type="number" min="1" max="20" value="1" required inputmode="numeric">
     </label>
-    <button class="primary wide">Join the line</button>
+    <button class="primary wide" data-i18n="join">Join the line</button>
     <p class="error" id="err" role="alert"></p>
   </form>
 
@@ -26,8 +30,8 @@
       <p id="headline" class="big"></p>
       <p id="detail"></p>
     </div>
-    <p class="muted">Keep this page open. It updates by itself and will beep when it's your turn.</p>
-    <p id="again" hidden><a href="join.html">Join the line again</a></p>
+    <p class="muted" data-i18n="keepOpen">Keep this page open. It updates by itself and will beep when it's your turn.</p>
+    <p id="again" hidden><a href="join.html" data-i18n="again">Join the line again</a></p>
   </section>
 </main>
 
@@ -45,6 +49,56 @@ try { id = id || localStorage.getItem('ticket'); } catch {}
 if (!UUID.test(id || '')) id = null;
 
 let alerted = false, flash;
+
+const T = {
+  en: {
+    join: 'Join the line', name: 'Your name', party: 'How many people?',
+    keepOpen: "Keep this page open. It updates by itself and will beep when it's your turn.",
+    again: 'Join the line again', number: "You're number",
+    wait: (n) => `About ${n} min wait`, next: ' · you are next!',
+    turn: "It's your turn!", front: 'Please come to the front now.', flash: "🔔 IT'S YOUR TURN",
+    thanks: 'Thanks!', enjoy: 'Enjoy your visit.',
+    removed: 'You were removed from the line', missed: 'Missed your turn? Ask at the front or join again.',
+    failed: 'Could not join. Please try again.',
+    'Name must be 1-40 characters': 'Name must be 1-40 characters',
+    'Party size must be 1-20': 'Party size must be 1-20',
+  },
+  ar: {
+    join: 'انضم إلى الطابور', name: 'اسمك', party: 'كم عدد الأشخاص؟',
+    keepOpen: 'أبقِ هذه الصفحة مفتوحة. ستتحدث تلقائيًا وستصدر صوتًا عندما يحين دورك.',
+    again: 'انضم إلى الطابور مرة أخرى', number: 'رقمك',
+    wait: (n) => `الانتظار حوالي ${n} دقيقة`, next: ' · أنت التالي!',
+    turn: 'حان دورك!', front: 'يرجى التوجه إلى المقدمة الآن.', flash: '🔔 حان دورك',
+    thanks: 'شكرًا لك!', enjoy: 'نتمنى لك زيارة ممتعة.',
+    removed: 'تمت إزالتك من الطابور', missed: 'فاتك دورك؟ اسأل في المقدمة أو انضم مرة أخرى.',
+    failed: 'تعذر الانضمام. يرجى المحاولة مرة أخرى.',
+    'Name must be 1-40 characters': 'يجب أن يكون الاسم من 1 إلى 40 حرفًا',
+    'Party size must be 1-20': 'يجب أن يكون عدد الأشخاص من 1 إلى 20',
+  },
+};
+console.assert(Object.keys(T.en).every((k) => k in T.ar), 'missing Arabic string');
+let lang = 'en';
+try { if (localStorage.getItem('lang') === 'ar') lang = 'ar'; } catch {}
+const t = (k) => T[lang][k];
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  if (!alerted) document.title = t('join');
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  const other = lang === 'ar' ? 'en' : 'ar';
+  $('#lang').lang = other;
+  $('#lang').textContent = other === 'ar' ? 'العربية' : 'English';
+}
+
+$('#lang').addEventListener('click', () => {
+  lang = lang === 'ar' ? 'en' : 'ar';
+  try { localStorage.setItem('lang', lang); } catch {}
+  $('#err').textContent = '';
+  applyLang();
+  refresh(); // redraw the ticket in the new language
+});
+applyLang();
 
 function showTicket(label, headline, detail, opts = {}) {
   $('#join').hidden = true;
@@ -77,7 +131,7 @@ function alertCustomer() {
   beep();
   navigator.vibrate?.([400, 200, 400, 200, 400]); // Android only; iPhone ignores it
   let on = false;
-  flash = setInterval(() => { document.title = (on = !on) ? "🔔 IT'S YOUR TURN" : 'Join the line'; }, 1000);
+  flash = setInterval(() => { document.title = (on = !on) ? t('flash') : t('join'); }, 1000);
 }
 
 async function refresh() {
@@ -87,16 +141,16 @@ async function refresh() {
   const s = data[0];
   if (!s) { forget(); id = null; $('#ticket').hidden = true; $('#join').hidden = false; return; }
   if (s.status === 'waiting') {
-    showTicket("You're number", `#${s.position}`,
-      `About ${s.est_minutes} min wait` + (s.position === 1 ? ' · you are next!' : ''));
+    showTicket(t('number'), `#${s.position}`,
+      t('wait')(s.est_minutes) + (s.position === 1 ? t('next') : ''));
   } else if (s.status === 'called') {
-    showTicket('', "It's your turn!", 'Please come to the front now.', { called: true });
+    showTicket('', t('turn'), t('front'), { called: true });
     alertCustomer();
   } else {
     clearInterval(flash);
-    document.title = 'Join the line';
-    showTicket('', s.status === 'done' ? 'Thanks!' : 'You were removed from the line',
-      s.status === 'done' ? 'Enjoy your visit.' : 'Missed your turn? Ask at the front or join again.', { over: true });
+    document.title = t('join');
+    showTicket('', s.status === 'done' ? t('thanks') : t('removed'),
+      s.status === 'done' ? t('enjoy') : t('missed'), { over: true });
     forget();
   }
 }
@@ -110,7 +164,8 @@ $('#join').addEventListener('submit', async (ev) => {
     p_name: f.elements.name.value, p_party: Number(f.elements.party.value),
   });
   btn.disabled = false;
-  if (error) { $('#err').textContent = error.message || 'Could not join. Please try again.'; return; }
+  if (error) { const m = error.message;
+    $('#err').textContent = (Object.hasOwn(T.en, m) && t(m)) || (lang === 'en' && m) || t('failed'); return; }
   id = data;
   try { localStorage.setItem('ticket', id); } catch {}
   history.replaceState(null, '', `?id=${id}`); // bookmarkable / survives reload
